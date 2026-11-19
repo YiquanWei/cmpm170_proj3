@@ -9,6 +9,10 @@ const BALL_RADIUS := 0.3
 const BASE_SPEED := 12.0
 const MAX_SPEED := 22.0
 const PADDLE_SPEED := 12.0
+const TIME_LIMIT := 90.0
+const BLOCKS_TO_WIN := 35
+const PADDLE_ACTIVE_TIME := 0.2
+const PADDLE_COOLDOWN := 0.45
 
 const GREEN := Color(0.3, 1.0, 0.3)
 const GREEN_MID := Color(0.17, 0.7, 0.17)
@@ -17,12 +21,22 @@ const GREEN_DIM := Color(0.09, 0.4, 0.09)
 var paddle: AnimatableBody3D
 var ball: CharacterBody3D
 var camera: Camera3D
+var paddle_shape: CollisionShape3D
 var label: Label
 
 var velocity := Vector3.ZERO
 var speed := BASE_SPEED
 var launched := false
+var timer_started := false
+var finished := false
+var won := false
+var time_left := TIME_LIMIT
+var blocks_broken := 0
+var paddle_active := false
+var active_left := 0.0
+var cooldown_left := 0.0
 var paddle_target := Vector2(0.0, FIELD_H / 2.0)
+
 
 func _ready() -> void:
 	build_environment()
@@ -31,6 +45,7 @@ func _ready() -> void:
 	build_paddle()
 	build_ball()
 	build_hud()
+
 
 # ---------------------------------------------------------------- building
 
@@ -42,6 +57,7 @@ func build_environment() -> void:
 	we.environment = env
 	add_child(we)
 
+
 func make_unshaded(color: Color) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -50,8 +66,8 @@ func make_unshaded(color: Color) -> StandardMaterial3D:
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	return mat
 
+
 func make_edges(size: Vector3, color: Color) -> MeshInstance3D:
-	# 12 bright outline edges of a box, drawn as lines
 	var h := size * 0.5 * 1.004
 	var corners := []
 	for x in [-1.0, 1.0]:
@@ -94,6 +110,7 @@ func make_body(body: PhysicsBody3D, size: Vector3, edge_color: Color, fill_alpha
 	body.add_child(shape)
 	add_child(body)
 	return body
+
 
 func build_arena() -> void:
 	var t := 1.0
@@ -148,15 +165,22 @@ func build_bricks() -> void:
 				b.position = Vector3((c - 4) * 1.5, 0.8 + r * 1.4, -14.0 - layer * 1.6)
 				b.add_to_group("brick")
 
+
 func build_paddle() -> void:
 	paddle = make_body(AnimatableBody3D.new(), PADDLE_SIZE, GREEN, 0.12) as AnimatableBody3D
 	paddle.position = Vector3(paddle_target.x, paddle_target.y, 0.0)
 
+	for child in paddle.get_children():
+		if child is CollisionShape3D:
+			paddle_shape = child
+	set_paddle_enabled(false)
+
 	camera = Camera3D.new()
 	camera.fov = 80.0
-	camera.position = Vector3(0.0, 0.0, 5.0)
-	paddle.add_child(camera)
+	camera.position = Vector3(paddle_target.x, paddle_target.y, 5.0)
+	add_child(camera)
 	camera.make_current()
+
 
 func build_ball() -> void:
 	ball = CharacterBody3D.new()
@@ -177,6 +201,7 @@ func build_ball() -> void:
 	ball.add_child(cs)
 	add_child(ball)
 
+
 func build_hud() -> void:
 	var layer := CanvasLayer.new()
 	label = Label.new()
@@ -189,10 +214,18 @@ func build_hud() -> void:
 
 
 func update_hud() -> void:
-	if not launched:
-		label.text = "Click or Space to launch"
+	var text := ""
+	if timer_started or finished:
+		text = "TIME %02d    BLOCKS %d/%d" % [ceili(time_left), blocks_broken, BLOCKS_TO_WIN]
 	else:
-		label.text = ""
+		text = "BREAK %d BLOCKS IN %d SECONDS" % [BLOCKS_TO_WIN, int(TIME_LIMIT)]
+	if finished:
+		text += "\n" + ("YOU WIN!" if won else "TIME UP!") + " - click or Space to restart"
+	elif not launched:
+		text += "\nClick or Space to launch"
+
+	label.text = text
+
 
 # ---------------------------------------------------------------- input
 
@@ -206,14 +239,38 @@ func _input(event: InputEvent) -> void:
 			KEY_R:
 				get_tree().reload_current_scene()
 
+
 func launch() -> void:
+	if finished:
+		get_tree().reload_current_scene()
+		return
 	if launched:
+		swing()
 		return
 	launched = true
+	timer_started = true
 	velocity = Vector3(randf_range(-0.3, 0.3), randf_range(-0.1, 0.1), -1.0).normalized() * speed
 	update_hud()
 
+
 # ---------------------------------------------------------------- gameplay
+
+func set_paddle_enabled(on: bool) -> void:
+	paddle.visible = on
+	paddle_shape.disabled = not on
+
+
+func swing() -> void:
+	if paddle_active or cooldown_left > 0.0:
+		return
+	paddle_active = true
+	active_left = PADDLE_ACTIVE_TIME
+	set_paddle_enabled(true)
+
+
+func _process(_delta: float) -> void:
+	camera.position = Vector3(paddle_target.x, paddle_target.y, 5.0)
+
 
 func _physics_process(delta: float) -> void:
 	var dir := 0.0
@@ -224,6 +281,26 @@ func _physics_process(delta: float) -> void:
 	paddle_target.x += dir * PADDLE_SPEED * delta
 	paddle_target.x = clampf(paddle_target.x, -FIELD_W / 2.0 + PADDLE_SIZE.x / 2.0, FIELD_W / 2.0 - PADDLE_SIZE.x / 2.0)
 	paddle.position = Vector3(paddle_target.x, paddle_target.y, 0.0)
+
+	if finished:
+		return
+
+	if paddle_active:
+		active_left -= delta
+		if active_left <= 0.0:
+			paddle_active = false
+			cooldown_left = PADDLE_COOLDOWN
+			set_paddle_enabled(false)
+	elif cooldown_left > 0.0:
+		cooldown_left -= delta
+
+	if timer_started:
+		time_left -= delta
+		if time_left <= 0.0:
+			time_left = 0.0
+			end_game(false)
+			return
+	update_hud()
 
 	if not launched:
 		ball.global_position = paddle.global_position + Vector3(0.0, 0.0, -1.0)
@@ -240,7 +317,10 @@ func _physics_process(delta: float) -> void:
 			if collider and collider.is_in_group("brick"):
 				collider.queue_free()
 				speed = minf(speed + 0.15, MAX_SPEED)
-				update_hud()
+				blocks_broken += 1
+				if blocks_broken >= BLOCKS_TO_WIN:
+					end_game(true)
+					return
 		fix_velocity()
 
 	if ball.global_position.z > 2.0:
@@ -260,4 +340,14 @@ func respawn_ball() -> void:
 	launched = false
 	velocity = Vector3.ZERO
 	speed = BASE_SPEED
+	paddle_active = false
+	cooldown_left = 0.0
+	set_paddle_enabled(false)
+	update_hud()
+
+
+func end_game(did_win: bool) -> void:
+	finished = true
+	won = did_win
+	velocity = Vector3.ZERO
 	update_hud()

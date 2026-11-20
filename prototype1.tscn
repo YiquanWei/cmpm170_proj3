@@ -2,6 +2,24 @@
 
 [ext_resource type="Script" path="res://prototype1.gd" id="1_a202f"]
 
+[ext_resource type="PackedScene" path="res://ui/hud.tscn" id="2_hud"]
+[ext_resource type="AudioStream" path="res://audio/return.wav" id="audio_return"]
+[ext_resource type="AudioStream" path="res://audio/miss.wav" id="audio_miss"]
+[ext_resource type="AudioStream" path="res://audio/brick.wav" id="audio_brick"]
+[ext_resource type="AudioStream" path="res://audio/win.wav" id="audio_win"]
+[ext_resource type="AudioStream" path="res://audio/lose.wav" id="audio_lose"]
+
+[sub_resource type="StandardMaterial3D" id="TrailMaterial"]
+shading_mode = 0
+albedo_color = Color(0.5, 1, 0.5, 1)
+
+[sub_resource type="SphereMesh" id="TrailMesh"]
+material = SubResource("TrailMaterial")
+radius = 0.13
+height = 0.26
+radial_segments = 8
+rings = 4
+
 [sub_resource type="Environment" id="Environment_noarx"]
 background_mode = 1
 
@@ -1910,17 +1928,71 @@ mesh = SubResource("SphereMesh_4arys")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ball" unique_id=1721003028]
 shape = SubResource("SphereShape3D_6iypd")
 
-[node name="HUD" type="CanvasLayer" parent="." unique_id=534462269]
+[node name="HUD" parent="." instance=ExtResource("2_hud")]
 
-[node name="StatusLabel" type="Label" parent="HUD" unique_id=1923448435]
-offset_left = 20.0
-offset_top = 20.0
-offset_right = 20.0
-offset_bottom = 20.0
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.3, 1, 0.3, 1)
-text = "BREAK 35 BLOCKS IN 90 SECONDS
-Click or Space to launch"
+[node name="Audio" type="Node" parent="."]
+
+[node name="Return" type="AudioStreamPlayer" parent="Audio"]
+stream = ExtResource("audio_return")
+volume_db = -5.0
+
+[node name="Miss" type="AudioStreamPlayer" parent="Audio"]
+stream = ExtResource("audio_miss")
+volume_db = -5.0
+
+[node name="Brick" type="AudioStreamPlayer" parent="Audio"]
+stream = ExtResource("audio_brick")
+volume_db = -5.0
+
+[node name="Win" type="AudioStreamPlayer" parent="Audio"]
+stream = ExtResource("audio_win")
+volume_db = -5.0
+
+[node name="Lose" type="AudioStreamPlayer" parent="Audio"]
+stream = ExtResource("audio_lose")
+volume_db = -5.0
+
+[node name="ReturnTrail" type="Node3D" parent="."]
+
+[node name="Dot1" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(1.0, 1.0, 1.0)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot2" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.91, 0.91, 0.91)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot3" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.8200000000000001, 0.8200000000000001, 0.8200000000000001)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot4" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.73, 0.73, 0.73)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot5" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.64, 0.64, 0.64)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot6" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.55, 0.55, 0.55)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot7" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.45999999999999996, 0.45999999999999996, 0.45999999999999996)
+mesh = SubResource("TrailMesh")
+
+[node name="Dot8" type="MeshInstance3D" parent="ReturnTrail"]
+visible = false
+scale = Vector3(0.37, 0.37, 0.37)
+mesh = SubResource("TrailMesh")
 
 [node name="Arena" type="Node3D" parent="." unique_id=105140589]
 

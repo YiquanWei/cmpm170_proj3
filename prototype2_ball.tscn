@@ -5,56 +5,56 @@ shading_mode = 0
 albedo_color = Color(1, 0.3, 0.12, 1)
 
 [sub_resource type="SphereMesh" id="SphereMesh_qwvgp"]
-radius = 0.23
-height = 0.46
-
-[sub_resource type="SphereShape3D" id="SphereShape3D_pinue"]
-radius = 0.23
-
-[sub_resource type="SphereMesh" id="SphereMesh_713h7"]
 radius = 0.09
 height = 0.18
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pinue"]
+radius = 0.09
+
+[sub_resource type="SphereMesh" id="SphereMesh_713h7"]
+radius = 0.035
+height = 0.07
 radial_segments = 8
 rings = 4
 
-[node name="EnemyBall" type="CharacterBody3D" unique_id=1317778127]
+[node name="EnemyBall" type="CharacterBody3D" unique_id=736668376]
 collision_layer = 0
-collision_mask = 3
+collision_mask = 7
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=249825780]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=575623926]
 material_override = SubResource("StandardMaterial3D_dwl5s")
 mesh = SubResource("SphereMesh_qwvgp")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=439943712]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=400498946]
 shape = SubResource("SphereShape3D_pinue")
 
-[node name="Trail" type="Node3D" parent="." unique_id=510846985]
+[node name="Trail" type="Node3D" parent="." unique_id=1900162782]
 
-[node name="Dot1" type="MeshInstance3D" parent="Trail" unique_id=507591860]
+[node name="Dot1" type="MeshInstance3D" parent="Trail" unique_id=168462293]
 visible = false
 mesh = SubResource("SphereMesh_713h7")
 
-[node name="Dot2" type="MeshInstance3D" parent="Trail" unique_id=610575233]
+[node name="Dot2" type="MeshInstance3D" parent="Trail" unique_id=1957168427]
 transform = Transform3D(0.88, 0, 0, 0, 0.88, 0, 0, 0, 0.88, 0, 0, 0)
 visible = false
 mesh = SubResource("SphereMesh_713h7")
 
-[node name="Dot3" type="MeshInstance3D" parent="Trail" unique_id=597699965]
+[node name="Dot3" type="MeshInstance3D" parent="Trail" unique_id=1834429618]
 transform = Transform3D(0.76, 0, 0, 0, 0.76, 0, 0, 0, 0.76, 0, 0, 0)
 visible = false
 mesh = SubResource("SphereMesh_713h7")
 
-[node name="Dot4" type="MeshInstance3D" parent="Trail" unique_id=836465101]
+[node name="Dot4" type="MeshInstance3D" parent="Trail" unique_id=78617750]
 transform = Transform3D(0.64, 0, 0, 0, 0.64, 0, 0, 0, 0.64, 0, 0, 0)
 visible = false
 mesh = SubResource("SphereMesh_713h7")
 
-[node name="Dot5" type="MeshInstance3D" parent="Trail" unique_id=646321013]
+[node name="Dot5" type="MeshInstance3D" parent="Trail" unique_id=1812853224]
 transform = Transform3D(0.52, 0, 0, 0, 0.52, 0, 0, 0, 0.52, 0, 0, 0)
 visible = false
 mesh = SubResource("SphereMesh_713h7")
 
-[node name="Dot6" type="MeshInstance3D" parent="Trail" unique_id=1595040917]
+[node name="Dot6" type="MeshInstance3D" parent="Trail" unique_id=1277190973]
 transform = Transform3D(0.4, 0, 0, 0, 0.4, 0, 0, 0, 0.4, 0, 0, 0)
 visible = false
 mesh = SubResource("SphereMesh_713h7")

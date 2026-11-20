@@ -1,6 +1,12 @@
 extends Node3D
 
-const TOTAL_BLOCKS := 20
+const TOTAL_BLOCKS := 128
+const MAX_BALLS := 3
+const BALL_MIN_Y := 0.52
+const BALL_MAX_Y := 2.43
+const BALL_MAX_X := 6.61
+
+@export var record_path := "user://prototype2_records.cfg"
 const BASE_HEALTH := 3
 const WALL_SPEED := 10.0
 const CYAN := Color(0.2, 0.9, 1.0)
@@ -16,7 +22,8 @@ var projectile_scene := preload("res://prototype2_ball.tscn")
 var projectiles: Array[CharacterBody3D] = []
 var started := false
 var finished := false
-var won := false
+var best_time := 0.0
+var new_record := false
 var health := BASE_HEALTH
 var intercepted := 0
 var elapsed := 0.0
@@ -38,6 +45,8 @@ func _ready() -> void:
 		start_run()
 	else:
 		hud.show_start()
+	load_record()
+	hud.set_best(best_time)
 	update_hud()
 
 func start_run() -> void:
@@ -69,48 +78,56 @@ func _physics_process(delta: float) -> void:
 		return
 	elapsed += delta
 	var direction := float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
-	wall.position.x = clampf(wall.position.x + direction * WALL_SPEED * delta, -5.1, 5.1)
+	wall.position.x = clampf(wall.position.x + direction * WALL_SPEED * delta, -4.8, 4.8)
 	camera.position.x = wall.position.x
 	fire_left -= delta
 	if fire_left <= 0.0:
-		fire_enemy_ball()
-		fire_left = maxf(1.3, 2.7 - intercepted * 0.055)
+		if projectiles.size() < MAX_BALLS:
+			fire_enemy_ball()
+		fire_left = maxf(3.5, 4.5 - elapsed * 0.005)
 	for ball in projectiles.duplicate():
 		if not is_instance_valid(ball) or ball.is_queued_for_deletion():
 			continue
-		var age: float = ball.get_meta("age") + delta
-		ball.set_meta("age", age)
-		var velocity: Vector3 = ball.get_meta("velocity")
-		var hit: KinematicCollision3D = ball.move_and_collide(velocity * delta)
-		update_ball_trail(ball)
-		if hit:
-			var collider := hit.get_collider() as Node3D
-			if collider.is_in_group("defence_block") and not ball.get_meta("returned"):
-				intercept_ball(ball, collider, hit.get_normal())
-				if finished:
-					return
-			elif collider.is_in_group("enemy_emitter"):
-				flash_edges(collider, CYAN)
-				remove_ball(ball)
-			else:
-				ball.set_meta("velocity", velocity.bounce(hit.get_normal()))
-		if ball.is_queued_for_deletion():
-			continue
-		if not ball.get_meta("returned") and ball.position.z > 3.0:
-			remove_ball(ball)
-			damage_base()
-			if finished:
-				return
-		elif ball.position.z < -29.0 or age > 12.0:
-			remove_ball(ball)
+		move_ball(ball, delta)
+		if finished:
+			return
 	update_hud()
+
+
+func move_ball(ball: CharacterBody3D, delta: float) -> void:
+	var motion: Vector3 = ball.get_meta("velocity") * delta
+	# Resolve the remaining travel after each impact, including multiple hits in one tick.
+	for collision_index in 8:
+		if motion.length_squared() < 0.0000001:
+			break
+		var hit := ball.move_and_collide(motion)
+		if not hit:
+			break
+		var collider := hit.get_collider() as Node3D
+		var normal := hit.get_normal()
+		var velocity: Vector3 = ball.get_meta("velocity")
+		ball.set_meta("velocity", velocity.bounce(normal))
+		motion = hit.get_remainder().bounce(normal)
+		if collider.is_in_group("defence_block"):
+			intercept_ball(ball, collider)
+		elif collider.is_in_group("enemy_emitter"):
+			flash_edges(collider, CYAN)
+	update_ball_trail(ball)
+	var flash_left := maxf(0.0, float(ball.get_meta("flash_left")) - delta)
+	ball.set_meta("flash_left", flash_left)
+	ball.get_node("Mesh").material_override = return_material if flash_left > 0 else incoming_material
+	# A ball is always hostile, including after one or more wall rebounds.
+	if ball.position.z > 3.0:
+		remove_ball(ball)
+		damage_base()
+
 
 func fire_enemy_ball() -> CharacterBody3D:
 	var emitter := emitters.get_child(randi_range(0, emitters.get_child_count() - 1)) as Node3D
-	var target_x := clampf(wall.position.x + randf_range(-3.4, 3.4), -6.3, 6.3)
+	var target_x := clampf(wall.position.x + randf_range(-3.4, 3.4), -6.1, 6.1)
 	var spawn := emitter.global_position + Vector3(0, 0, 1.3)
-	var target := Vector3(target_x, 1.5, 0)
-	var speed := minf(11.5, 8.0 + intercepted * 0.12)
+	var target := Vector3(target_x, randf_range(0.65, 2.3), 0)
+	var speed := minf(15.0, 7.5 + elapsed * 0.035)
 	var ball := spawn_ball(spawn, (target - spawn).normalized() * speed)
 	flash_edges(emitter, ORANGE)
 	$Audio/Fire.play()
@@ -122,30 +139,21 @@ func spawn_ball(position_world: Vector3, velocity: Vector3) -> CharacterBody3D:
 	ball.global_position = position_world
 	ball.get_node("Mesh").material_override = incoming_material
 	ball.set_meta("velocity", velocity)
-	ball.set_meta("returned", false)
-	ball.set_meta("age", 0.0)
+	ball.set_meta("flash_left", 0.0)
 	ball.set_meta("trail", PackedVector3Array())
 	projectiles.append(ball)
 	return ball
 
-func intercept_ball(ball: CharacterBody3D, block: Node3D, normal: Vector3) -> void:
+func intercept_ball(ball: CharacterBody3D, block: Node3D) -> void:
 	if block.is_queued_for_deletion():
 		return
 	block.remove_from_group("defence_block")
 	flash_edges(block, CYAN)
 	block.queue_free()
 	intercepted += 1
-	var velocity: Vector3 = ball.get_meta("velocity")
-	var reflected := velocity.bounce(normal)
-	reflected.z = -maxf(absf(reflected.z), velocity.length() * 0.8)
-	ball.set_meta("velocity", reflected.normalized() * velocity.length())
-	ball.set_meta("returned", true)
-	ball.collision_mask = 5
-	ball.get_node("Mesh").material_override = return_material
+	ball.set_meta("flash_left", 0.25)
 	hud.notify_intercept()
 	$Audio/Return.play()
-	if intercepted >= TOTAL_BLOCKS:
-		end_game(true)
 
 func damage_base() -> void:
 	health = maxi(0, health - 1)
@@ -153,28 +161,42 @@ func damage_base() -> void:
 	flash_edges($Base, ORANGE)
 	$Audio/Miss.play()
 	if health <= 0:
-		end_game(false)
+		end_game()
 
 func remove_ball(ball: CharacterBody3D) -> void:
 	projectiles.erase(ball)
 	ball.queue_free()
 
-func end_game(did_win: bool) -> void:
+func end_game() -> void:
 	if finished:
 		return
 	finished = true
-	won = did_win
+	new_record = elapsed > best_time
+	if new_record:
+		best_time = elapsed
+		var records := ConfigFile.new()
+		records.set_value("survival", "best_seconds", best_time)
+		var error := records.save(record_path)
+		if error != OK:
+			push_warning("Could not save survival record: %s" % error_string(error))
 	for ball in projectiles:
 		ball.queue_free()
 	projectiles.clear()
-	if won:
-		$Audio/Win.play()
-	else:
-		$Audio/Lose.play()
-	hud.show_end(won, intercepted, TOTAL_BLOCKS, health, elapsed)
+	$Audio/Lose.play()
+	hud.show_end(intercepted, TOTAL_BLOCKS, elapsed, best_time, new_record)
+
+
+func load_record() -> void:
+	var records := ConfigFile.new()
+	if records.load(record_path) == OK:
+		var value = records.get_value("survival", "best_seconds", 0.0)
+		if (value is float or value is int) and is_finite(float(value)):
+			best_time = maxf(0.0, float(value))
+
 
 func update_hud() -> void:
-	hud.update_game(elapsed, intercepted, TOTAL_BLOCKS, health, BASE_HEALTH)
+	hud.update_game(elapsed, intercepted, TOTAL_BLOCKS, health, BASE_HEALTH, best_time)
+
 
 func flash_edges(body: Node3D, color: Color) -> void:
 	var edges := body.get_node("Edges").duplicate() as MeshInstance3D
@@ -201,6 +223,6 @@ func update_ball_trail(ball: CharacterBody3D) -> void:
 	for i in dots.size():
 		var dot := dots[i] as MeshInstance3D
 		dot.visible = history.size() > i + 1
-		dot.material_override = return_material if ball.get_meta("returned") else incoming_material
+		dot.material_override = return_material if float(ball.get_meta("flash_left")) > 0 else incoming_material
 		if dot.visible:
 			dot.global_position = history[i + 1]

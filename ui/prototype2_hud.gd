@@ -34,17 +34,20 @@ func show_game() -> void:
 	game.show()
 	get_viewport().gui_release_focus()
 
-func update_game(seconds: float, intercepted: int, target: int, health: int, max_health: int) -> void:
+func set_best(seconds: float) -> void:
+	$StartScreen/Frame/Margin/Content/Footer.text = "PERSONAL BEST  " + format_time(seconds)
+
+func update_game(seconds: float, intercepted: int, target: int, health: int, max_health: int, best: float) -> void:
 	$Game/Clock/Time.text = format_time(seconds)
-	$Game/Blocks.text = "INTERCEPTS  %02d / %02d" % [intercepted, target]
-	$Game/Misses.text = "WALL BLOCKS  %02d" % (target - intercepted)
+	$Game/Blocks.text = "BLOCKS LEFT  %03d" % (target - intercepted)
+	$Game/Misses.text = "BEST  %s" % format_time(best)
 	$Game/Bottom/Status.text = "BASE INTEGRITY  %d / %d" % [health, max_health]
 	$Game/Bottom/Status.modulate = ORANGE if health == 1 else CYAN
 	$Game/Bottom/Recharge.value = 100.0 * health / max_health
 	$Game/Bottom/Prompt.text = "A / D OR ARROWS TO MOVE THE WALL"
 
 func notify_intercept() -> void:
-	$Game/Feedback.text = "INTERCEPTED — 1 BLOCK USED"
+	$Game/Feedback.text = "RICOCHET — BLOCK BROKEN"
 	$Game/Feedback.modulate = CYAN
 	feedback_left = 0.8
 
@@ -53,17 +56,18 @@ func notify_base_hit() -> void:
 	$Game/Feedback.modulate = ORANGE
 	feedback_left = 1.3
 
-func show_end(did_win: bool, intercepted: int, target: int, health: int, seconds: float) -> void:
+func show_end(broken: int, total: int, seconds: float, best: float, record: bool) -> void:
 	game.hide()
 	start_screen.hide()
 	end_screen.show()
 	var content := $EndScreen/Frame/Margin/Content
-	content.get_node("Title").text = "BASE SECURED" if did_win else "BASE LOST"
-	content.get_node("Title").modulate = CYAN if did_win else ORANGE
-	content.get_node("Subtitle").text = "Evacuation complete. You held the line." if did_win else "The defence was breached. Try again."
-	content.get_node("Results").text = "INTERCEPTIONS      %02d / %02d\nBASE INTEGRITY     %d / 3\nSURVIVAL TIME      %s" % [intercepted, target, health, format_time(seconds)]
+	content.get_node("Title").text = "NEW PERSONAL BEST" if record else "BASE LOST"
+	content.get_node("Title").modulate = CYAN if record else ORANGE
+	content.get_node("Subtitle").text = "A new record. Can you hold out longer?" if record else "Rebuild your defence. Challenge your best."
+	content.get_node("Results").text = "SURVIVAL TIME    %s\nPERSONAL BEST    %s\nBLOCKS BROKEN    %03d / %03d" % [format_time(seconds), format_time(best), broken, total]
 	content.get_node("Buttons/Again").grab_focus()
+	set_best(best)
 
 func format_time(seconds: float) -> String:
-	var total := int(maxf(0.0, seconds))
-	return "%02d:%02d" % [total / 60, total % 60]
+	var tenths := int(maxf(0.0, seconds) * 10.0)
+	return "%02d:%02d.%d" % [tenths / 600, (tenths / 10) % 60, tenths % 10]

@@ -82,13 +82,13 @@ theme = SubResource("Theme")
 visible = false
 
 [node name="Blocks" type="Label" parent="Game"]
-text = "INTERCEPTS  00 / 20"
+text = "BLOCKS LEFT  128"
 theme_override_font_sizes/font_size = 22
 offset_left = 32.0
 offset_top = 28.0
 
 [node name="Misses" type="Label" parent="Game"]
-text = "WALL BLOCKS  20"
+text = "BEST  00:00.0"
 theme_override_font_sizes/font_size = 16
 offset_left = 32.0
 offset_top = 62.0
@@ -110,7 +110,7 @@ offset_right = 220.0
 horizontal_alignment = 1
 
 [node name="Time" type="Label" parent="Game/Clock"]
-text = "00:00"
+text = "00:00.0"
 theme_override_font_sizes/font_size = 46
 offset_top = 18.0
 offset_right = 220.0
@@ -261,7 +261,7 @@ text = "LAST LINE"
 theme_override_font_sizes/font_size = 46
 
 [node name="Objective" type="Label" parent="StartScreen/Frame/Margin/Content"]
-text = "20 BLOCKS. ONE BASE."
+text = "HOLD THE LINE. BEAT YOUR BEST."
 theme_override_font_sizes/font_size = 24
 
 [node name="Line" type="HSeparator" parent="StartScreen/Frame/Margin/Content"]
@@ -272,7 +272,7 @@ theme_override_font_sizes/font_size = 18
 theme_override_constants/line_spacing = 10
 
 [node name="Rules" type="Label" parent="StartScreen/Frame/Margin/Content"]
-text = "Each interception uses one wall block.\nReturn 20 shots while keeping the base alive.\nA missed shot costs one of 3 base lives."
+text = "Balls ricochet through your wall, breaking blocks.\nSurvive enemy fire for as long as possible.\nThe base can take 3 hits. Your best time is saved."
 theme_override_font_sizes/font_size = 16
 theme_override_constants/line_spacing = 7
 modulate = Color(0.65, 0.8, 0.85, 1)
@@ -283,7 +283,7 @@ text = "START"
 mouse_default_cursor_shape = 2
 
 [node name="Footer" type="Label" parent="StartScreen/Frame/Margin/Content"]
-text = "ENEMY FIRE BEGINS AFTER START"
+text = "PERSONAL BEST  00:00.0"
 theme_override_font_sizes/font_size = 12
 horizontal_alignment = 1
 modulate = Color(0.3, 0.65, 0.75, 1)
@@ -294,17 +294,17 @@ theme_override_font_sizes/font_size = 13
 modulate = Color(0.3, 0.65, 0.75, 1)
 
 [node name="Title" type="Label" parent="EndScreen/Frame/Margin/Content"]
-text = "BASE SECURED"
+text = "BASE LOST"
 theme_override_font_sizes/font_size = 36
 
 [node name="Subtitle" type="Label" parent="EndScreen/Frame/Margin/Content"]
-text = "All interceptions complete. Evacuation secured."
+text = "Survive longer. Challenge your personal best."
 theme_override_font_sizes/font_size = 17
 
 [node name="Line" type="HSeparator" parent="EndScreen/Frame/Margin/Content"]
 
 [node name="Results" type="Label" parent="EndScreen/Frame/Margin/Content"]
-text = "INTERCEPTIONS      20 / 20\nBASE INTEGRITY     3 / 3\nSURVIVAL TIME      00:18"
+text = "SURVIVAL TIME    00:18.0\nPERSONAL BEST    00:18.0\nBLOCKS BROKEN    000 / 128"
 theme_override_font_sizes/font_size = 22
 theme_override_constants/line_spacing = 18
 

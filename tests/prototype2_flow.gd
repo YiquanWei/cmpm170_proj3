@@ -2,6 +2,7 @@ extends SceneTree
 
 var game: Node
 var checks := 0
+var record_path := "/tmp/prototype2-test-%d.cfg" % OS.get_process_id()
 
 func _initialize() -> void:
 	call_deferred("run_checks")
@@ -19,9 +20,11 @@ func frames(count: int) -> void:
 
 func fresh() -> void:
 	if current_scene:
+		await create_timer(0.7).timeout
 		current_scene.queue_free()
 		await process_frame
 	game = load("res://prototype2.tscn").instantiate()
+	game.record_path = record_path
 	root.add_child(game)
 	current_scene = game
 	await frames(3)
@@ -29,100 +32,141 @@ func fresh() -> void:
 func layout(screen: Control) -> void:
 	var frame: Control = screen.get_node("Frame")
 	var margin: Control = frame.get_node("Margin")
-	check(margin.get_combined_minimum_size().x <= frame.size.x, "menu fits panel width")
-	check(margin.get_combined_minimum_size().y <= frame.size.y, "menu fits panel height")
+	check(margin.get_combined_minimum_size().x <= frame.size.x, "menu fits width")
+	check(margin.get_combined_minimum_size().y <= frame.size.y, "menu fits height")
 
 func run_checks() -> void:
 	root.size = Vector2i(1152, 720)
 	await fresh()
-	check(game.get_node("Wall").get_child_count() == 20, "20 authored wall blocks")
-	check(get_nodes_in_group("defence_block").size() == 20, "all blocks have saved collision group")
-	check(game.emitters.get_child_count() == 3, "3 enemy emitters")
-	await frames(12)
-	check(game.elapsed == 0 and game.projectiles.is_empty(), "menu pauses clock and fire")
-	layout(game.hud.start_screen)
-	var button: Button = game.hud.get_node("StartScreen/Frame/Margin/Content/Start")
-	var click := InputEventMouseButton.new()
-	click.button_index = MOUSE_BUTTON_LEFT
-	click.position = button.global_position + button.size * 0.5
-	click.pressed = true
-	root.push_input(click)
-	click = click.duplicate()
-	click.pressed = false
-	root.push_input(click)
-	check(game.started and game.hud.game.visible, "start button begins defence")
-	var key := InputEventKey.new()
-	key.keycode = KEY_D
-	key.pressed = true
-	Input.parse_input_event(key)
-	await frames(40)
-	check(is_equal_approx(game.wall.position.x, 5.1), "right movement clamps to arena")
-	check(is_equal_approx(game.camera.position.x, game.wall.position.x), "first person camera follows defence")
-	key.pressed = false
-	Input.parse_input_event(key)
-	key = InputEventKey.new()
-	key.keycode = KEY_A
-	key.pressed = true
-	Input.parse_input_event(key)
-	await frames(70)
-	check(is_equal_approx(game.wall.position.x, -5.1), "left movement clamps to arena")
-	key.pressed = false
-	Input.parse_input_event(key)
-	game.wall.position.x = 0
-	await frames(100)
-	check(game.elapsed > 1 and game.projectiles.size() >= 1, "enemies fire automatically")
-	for ball in game.projectiles.duplicate():
-		game.remove_ball(ball)
-	game.fire_left = 999.0
-	await frames(2)
-	var incoming = game.spawn_ball(Vector3(-1.35, 1.5, -4), Vector3(0, 0, 9))
-	await frames(18)
-	check(game.intercepted == 1 and get_nodes_in_group("defence_block").size() == 19, "one collision consumes exactly one block")
-	check(incoming.get_meta("returned") and incoming.get_meta("velocity").z < 0, "ball reflects toward enemies")
-	check(incoming.get_node("Trail/Dot1").visible, "moving projectile has a visible trail")
-	check(incoming.collision_mask == 5, "returned ball cannot consume more wall blocks")
-	check(game.health == 3, "successful interception protects base")
-	await frames(15)
-	check(game.intercepted == 1, "same reflected ball never consumes a second block")
-	game.spawn_ball(Vector3(6, 1.5, 3.1), Vector3(0, 0, 9))
-	await frames(2)
-	check(game.health == 2 and game.intercepted == 1, "miss costs one base life and no blocks")
-	check(game.hud.get_node("Game/Feedback").text.contains("BASE HIT"), "miss has distinct feedback")
-	game.spawn_ball(Vector3(6, 1.5, 3.1), Vector3(0, 0, 9))
-	game.spawn_ball(Vector3(-6, 1.5, 3.1), Vector3(0, 0, 9))
-	await frames(3)
-	check(game.finished and not game.won and game.health == 0, "third base hit loses")
-	check(game.projectiles.is_empty() and game.hud.end_screen.visible, "ending clears live projectiles")
-	layout(game.hud.end_screen)
-	game.hud.get_node("EndScreen/Frame/Margin/Content/Buttons/Again").pressed.emit()
-	await process_frame
-	await frames(3)
-	game = current_scene
-	check(game.started and not game.finished and game.health == 3 and game.intercepted == 0, "restart resets all stats")
-	check(get_nodes_in_group("defence_block").size() == 20, "restart restores wall")
-	game.fire_left = 999
-	# Exercise real collision for every block, including deeper wall layers.
-	for i in 20:
-		for ball in game.projectiles.duplicate():
-			game.remove_ball(ball)
-		var block: Node3D = get_nodes_in_group("defence_block")[0]
-		var p := block.global_position + Vector3(0, 0, -1)
-		game.spawn_ball(p, Vector3(0, 0, 9))
-		await frames(15)
-		check(game.intercepted == i + 1, "wall block %d is reachable" % (i + 1))
-	check(game.finished and game.won and game.health == 3, "last block wins with living base")
-	check(game.projectiles.is_empty(), "last block ends fire immediately")
-	check(game.hud.get_node("EndScreen/Frame/Margin/Content/Title").text == "BASE SECURED", "victory summary is distinct")
-	var time: float = game.elapsed
+	check(get_nodes_in_group("defence_block").size() == 128, "128 small authored bricks")
+	var block: StaticBody3D = game.wall.get_child(0)
+	check(block.get_node("CollisionShape3D").shape.size.is_equal_approx(Vector3(.42, .44, .42)), "individual bricks are smaller in all main face dimensions")
+	var ball = game.spawn_ball(Vector3(0, 1.5, -10), Vector3.ZERO)
+	check(is_equal_approx(ball.get_node("CollisionShape3D").shape.radius, .09), "smaller ball collider matches visual radius")
+	game.remove_ball(ball)
+	check(game.best_time == 0, "missing record starts at zero")
 	await frames(10)
-	check(game.elapsed == time, "survival clock stops at ending")
-	await create_timer(0.7).timeout
-	game.hud.get_node("EndScreen/Frame/Margin/Content/Buttons/Menu").pressed.emit()
-	await process_frame
+	check(game.elapsed == 0, "menu pauses survival clock")
+	layout(game.hud.start_screen)
+	# The player only moves horizontally: all legal ball heights must intersect a row.
+	var covered := true
+	for xi in 21:
+		for yi in 21:
+			var x := lerpf(-game.BALL_MAX_X, game.BALL_MAX_X, xi / 20.0)
+			var y := lerpf(game.BALL_MIN_Y, game.BALL_MAX_Y, yi / 20.0)
+			var reachable := false
+			for brick in game.wall.get_children():
+				var shift := clampf(x - brick.position.x, -4.8, 4.8)
+				if absf(x - brick.position.x - shift) <= 0.30 and absf(y - brick.position.y) <= 0.31:
+					reachable = true
+					break
+			covered = covered and reachable
+	check(covered, "every point in legal ball cross-section is coverable by horizontal wall movement")
+	var probe = game.spawn_ball(Vector3(0, 1.5, -10), Vector3(5, 12, 0))
+	var confined := true
+	game.set_physics_process(false)
+	for i in 360:
+		game.move_ball(probe, 1.0 / 60.0)
+		confined = confined and probe.position.y >= game.BALL_MIN_Y - .005 and probe.position.y <= game.BALL_MAX_Y + .005
+		confined = confined and absf(probe.position.x) <= game.BALL_MAX_X + .005
+	check(confined, "repeated ceiling, floor and side rebounds never leave reachable defence area")
+	game.remove_ball(probe)
+	game.set_physics_process(true)
+	game.start_run()
+	game.fire_left = 999
+	ball = game.spawn_ball(Vector3(-1.9, .65, -3.4), Vector3(2, 0, 8))
+	await frames(6)
+	check(game.intercepted == 1, "oblique frontal impact breaks a brick")
+	var v: Vector3 = ball.get_meta("velocity")
+	check(v.is_equal_approx(Vector3(2, 0, -8)), "frontal bounce preserves tangential velocity and incident angle")
+	check(ball.collision_mask == 7, "ball remains able to hit blocks after bouncing")
+	check(ball.get_node("Trail/Dot1").visible, "smaller ball retains readable trail")
+	check(game.health == 3, "block impact does not hurt base")
+	await fresh()
+	game.start_run()
+	game.fire_left = 999
+	ball = game.spawn_ball(Vector3(-2.3, .65, -2.6), Vector3(8, 0, 1.2))
+	await frames(4)
+	v = ball.get_meta("velocity")
+	check(v.is_equal_approx(Vector3(-8, 0, 1.2)), "side impact reverses x, without forcing z away from the base")
+	# Put two real brick colliders either side of a small empty channel.
+	await fresh()
+	game.start_run()
+	game.fire_left = 999
+	game.wall.position.x = 4.8
+	for x in [-0.45, 0.45]:
+		var fixture: StaticBody3D = game.wall.get_child(0).duplicate()
+		game.add_child(fixture)
+		fixture.position = Vector3(x, 1.5, -7)
+	await frames(2)
+	ball = game.spawn_ball(Vector3(0, 1.5, -7), Vector3(90, 0, .8))
+	await frames(2)
+	check(game.intercepted == 2, "one ball breaks two bricks through successive real side bounces")
+	check(is_instance_valid(ball) and not ball.is_queued_for_deletion(), "ricocheting ball stays alive")
+	check(game.health == 3, "ricochet channel does not falsely damage base")
+	# Long-lived ricochets count toward the cap; emitters must wait for a free slot.
+	await fresh()
+	game.start_run()
+	for i in game.MAX_BALLS:
+		game.spawn_ball(Vector3(i, 1.5, -15), Vector3.ZERO)
+	game.fire_left = 0
+	await frames(2)
+	check(game.projectiles.size() == 3, "enemy fire never exceeds three simultaneous balls")
+	game.remove_ball(game.projectiles[0])
+	game.fire_left = 0
+	await frames(2)
+	check(game.projectiles.size() == 3, "enemy resumes fire when a ball slot opens")
+	# Empty wall is a continuing survival state, never a victory.
+	await fresh()
+	game.start_run()
+	game.fire_left = 999
+	for brick in game.wall.get_children():
+		brick.queue_free()
+	game.intercepted = 128
 	await frames(3)
-	game = current_scene
-	check(not game.started and game.hud.start_screen.visible, "main menu resets prototype2")
+	check(not game.finished and game.hud.game.visible, "using all blocks does not end survival")
+	check(game.hud.get_node("Game/Blocks").text == "BLOCKS LEFT  000", "HUD reports depleted wall")
+	game.fire_left = 0
+	await frames(2)
+	check(game.projectiles.size() == 1, "enemy fire continues with no bricks left")
+	for shot in game.projectiles.duplicate():
+		game.remove_ball(shot)
+	# Previously bounced balls are still hostile when they reach the base.
+	ball = game.spawn_ball(Vector3(6, 1.5, 3.1), Vector3(0, 0, 8))
+	ball.set_meta("flash_left", .25)
+	await frames(2)
+	check(game.health == 2 and not game.finished, "a bounced ball reaching base still costs a life")
+	game.fire_left = 999
+	game.elapsed = 65.43
+	game.spawn_ball(Vector3(6, 1.5, 3.1), Vector3(0, 0, 8))
+	game.spawn_ball(Vector3(-6, 1.5, 3.1), Vector3(0, 0, 8))
+	await frames(3)
+	check(game.finished and game.health == 0, "only base destruction ends the run")
+	check(game.new_record and game.best_time >= 65.43, "first survival run sets personal best")
+	check(game.projectiles.is_empty(), "ending clears live balls")
+	check(game.hud.get_node("EndScreen/Frame/Margin/Content/Title").text == "NEW PERSONAL BEST", "record gets distinct result heading")
+	layout(game.hud.end_screen)
+	check(game.hud.get_node("EndScreen/Frame/Margin/Content/Results").text.contains("01:05.4"), "summary displays tenths of seconds")
+	var saved_best: float = game.best_time
+	var stopped_time: float = game.elapsed
+	await frames(8)
+	check(game.elapsed == stopped_time, "clock stops on game over")
+	var config := ConfigFile.new()
+	check(config.load(record_path) == OK, "record persisted on disk")
+	check(is_equal_approx(config.get_value("survival", "best_seconds"), saved_best), "persisted record matches run")
+	await fresh()
+	check(is_equal_approx(game.best_time, saved_best), "fresh scene reloads record")
+	game.start_run()
+	game.elapsed = 10
+	game.damage_base()
+	game.damage_base()
+	game.damage_base()
+	check(not game.new_record and is_equal_approx(game.best_time, saved_best), "shorter run never overwrites best")
+	config.load(record_path)
+	check(is_equal_approx(config.get_value("survival", "best_seconds"), saved_best), "shorter run leaves stored record intact")
+	await create_timer(0.7).timeout
 	game.queue_free()
 	await process_frame
-	print("PASS: %d prototype2 checks, including real collisions for all 20 blocks" % checks)
+	DirAccess.remove_absolute(record_path)
+	print("PASS: %d endless-survival checks covering angle reflection, multi-hit ricochet, small geometry and persistent records" % checks)
 	quit()

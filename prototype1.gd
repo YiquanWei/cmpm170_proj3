@@ -12,6 +12,11 @@ const PADDLE_ACTIVE_TIME := 0.2
 const PADDLE_COOLDOWN := 0.45
 const MISS_PENALTY := 3.0
 const GREEN := Color(0.3, 1.0, 0.3)
+# Dim outline shown at all times so the player always knows where the paddle is.
+const OUTLINE_IDLE := Color(0.12, 0.4, 0.12)
+# Ball colour when a swing right now would reach it in time.
+const BALL_IN_RANGE := Color(1.0, 0.25, 0.2)
+const BALL_RADIUS := 0.3
 
 
 @onready var paddle: AnimatableBody3D = $Paddle
@@ -20,6 +25,8 @@ const GREEN := Color(0.3, 1.0, 0.3)
 @onready var paddle_shape: CollisionShape3D = $Paddle/CollisionShape3D
 @onready var hud = $HUD
 @onready var paddle_edges: MeshInstance3D = $Paddle/Edges
+@onready var paddle_fill: MeshInstance3D = $Paddle/Mesh
+@onready var ball_mesh: MeshInstance3D = $Ball/Mesh
 @onready var trail: Node3D = $ReturnTrail
 
 var started := false
@@ -27,6 +34,7 @@ var misses := 0
 var return_flash_left := 0.0
 var trail_positions: Array[Vector3] = []
 var paddle_material: StandardMaterial3D
+var ball_material: StandardMaterial3D
 var velocity := Vector3.ZERO
 var speed := BASE_SPEED
 var launched := false
@@ -46,6 +54,9 @@ func _ready() -> void:
 	ball.position = paddle.position + Vector3(0.0, 0.0, -1.0)
 	paddle_material = paddle_edges.mesh.surface_get_material(0).duplicate()
 	paddle_edges.material_override = paddle_material
+	ball_material = ball_mesh.mesh.surface_get_material(0).duplicate()
+	ball_mesh.material_override = ball_material
+	paddle.visible = true
 	set_paddle_enabled(false)
 	clear_trail()
 	hud.start_requested.connect(start_run)
@@ -116,7 +127,8 @@ func launch() -> void:
 # ---------------------------------------------------------------- gameplay
 
 func set_paddle_enabled(on: bool) -> void:
-	paddle.visible = on
+	# The outline (Edges) always stays visible; only the filled box shows during a swing.
+	paddle_fill.visible = on
 	paddle_shape.disabled = not on
 
 
@@ -131,9 +143,14 @@ func swing() -> void:
 func _process(delta: float) -> void:
 	camera.position = Vector3(paddle_target.x, paddle_target.y, 5.0)
 	return_flash_left = maxf(0.0, return_flash_left - delta)
-	paddle_material.albedo_color = GREEN.lerp(Color(0.9, 1.0, 0.9), clampf(return_flash_left / 0.35, 0.0, 1.0))
+	var lit := paddle_active or return_flash_left > 0.0
+	if lit:
+		paddle_material.albedo_color = GREEN.lerp(Color(0.9, 1.0, 0.9), clampf(return_flash_left / 0.35, 0.0, 1.0))
+	else:
+		paddle_material.albedo_color = OUTLINE_IDLE
 	# Keep a successful return visible beyond the very short active swing window.
-	paddle.visible = paddle_active or return_flash_left > 0.0
+	paddle_fill.visible = lit
+	ball_material.albedo_color = BALL_IN_RANGE if ball_in_range() else GREEN
 	if return_flash_left <= 0.0:
 		clear_trail()
 
@@ -198,6 +215,21 @@ func _physics_process(delta: float) -> void:
 		update_trail()
 	if ball.global_position.z > 2.0:
 		respawn_ball()
+
+
+# True when pressing space now would put the active paddle in the ball's path
+# before the swing window closes.
+func ball_in_range() -> bool:
+	if not launched or finished or velocity.z <= 0.0:
+		return false
+	var front := paddle.global_position.z - PADDLE_SIZE.z / 2.0
+	var gap := front - (ball.global_position.z + BALL_RADIUS)
+	if gap > velocity.z * PADDLE_ACTIVE_TIME or gap < -(PADDLE_SIZE.z + BALL_RADIUS * 2.0):
+		return false
+	var at := ball.global_position + velocity * (maxf(gap, 0.0) / velocity.z)
+	var off := at - paddle.global_position
+	return absf(off.x) <= PADDLE_SIZE.x / 2.0 + BALL_RADIUS \
+		and absf(off.y) <= PADDLE_SIZE.y / 2.0 + BALL_RADIUS
 
 
 func fix_velocity() -> void:

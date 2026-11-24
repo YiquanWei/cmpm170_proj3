@@ -117,19 +117,6 @@ func run_checks() -> void:
 	click(MOUSE_BUTTON_LEFT, screen_of(game.cell_center(Vector2i(7, 3))))
 	check(game.blocks.size() == 8, "no building once defending")
 
-	# The player only moves horizontally: every legal ball x must be coverable by some column.
-	var covered := true
-	for xi in 21:
-		var x := lerpf(-game.BALL_MAX_X, game.BALL_MAX_X, xi / 20.0)
-		var reachable := false
-		for col in game.GRID_COLS:
-			var center: float = game.cell_center(Vector2i(col, 0)).x
-			var shift := clampf(x - center, -game.WALL_LIMIT, game.WALL_LIMIT)
-			if absf(x - center - shift) <= 0.46:
-				reachable = true
-		covered = covered and reachable
-	check(covered, "every point on the ball lane is coverable by moving the wall")
-
 	var probe = game.spawn_ball(Vector3(0, 1.5, -10), Vector3(5, 12, 0))
 	check(is_equal_approx(probe.position.y, game.BALL_Y) and is_equal_approx(probe.get_meta("velocity").y, 0.0), "balls spawn flat on the lane")
 	check(is_equal_approx(probe.get_meta("velocity").length(), Vector3(5, 12, 0).length()), "flattening keeps ball speed")
@@ -168,10 +155,23 @@ func run_checks() -> void:
 	check(game.intercepted == 2, "one ball breaks two blocks through successive side bounces")
 	check(is_instance_valid(ball) and not ball.is_queued_for_deletion(), "ricocheting ball stays alive")
 	check(game.health == 3, "ricochet channel does not falsely damage base")
-	await defend([Vector2i(0, 0)])
+	# Wall limits follow the outermost blocks, so a one-sided build can still cover the far side.
+	await defend([Vector2i(6, 0), Vector2i(7, 2)])
+	var right_side: StaticBody3D = game.blocks[Vector2i(6, 0)]
+	game.wall.position.x = -99
+	await frames(2)
+	check(is_equal_approx(right_side.global_position.x - .46, -game.LANE_EDGE), "a right-side build slides until its leftmost block meets the left rail")
+	await frames(60)
+	check(absf(game.camera.position.x - game.defence_center()) < .05, "camera follows the centre of the defence")
 	game.wall.position.x = 99
 	await frames(2)
-	check(is_equal_approx(game.wall.position.x, game.WALL_LIMIT), "wall movement is clamped to the arena")
+	var far_right: StaticBody3D = game.blocks[Vector2i(7, 2)]
+	check(is_equal_approx(far_right.global_position.x + .46, game.LANE_EDGE), "rightmost block stops at the right rail")
+	far_right.queue_free()
+	game.blocks.erase(Vector2i(7, 2))
+	game.wall.position.x = 99
+	await frames(2)
+	check(is_equal_approx(right_side.global_position.x + .46, game.LANE_EDGE), "losing the outermost block extends the wall's reach")
 	# Long-lived ricochets count toward the cap; emitters must wait for a free slot.
 	await defend([Vector2i(0, 0)])
 	for i in game.MAX_BALLS:

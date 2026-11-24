@@ -7,12 +7,13 @@ const CELL_SIZE := Vector2(1.0, 0.7)
 const GRID_FRONT_Z := -0.15
 # Rows near -> far. Nearer blocks are shorter so the player can see the whole defence.
 const ROW_HEIGHTS: Array[float] = [0.8, 1.0, 1.2, 1.4]
-const WALL_LIMIT := 2.8
 const NO_CELL := Vector2i(-1, -1)
 const MAX_BALLS := 3
 # Balls travel flat at this height; every block row is tall enough to cover it.
 const BALL_Y := 0.65
 const BALL_MAX_X := 6.61
+# The lane rails; the outermost block may slide up to here.
+const LANE_EDGE := BALL_MAX_X + 0.09
 
 @export var record_path := "user://prototype2_records.cfg"
 const BASE_HEALTH := 3
@@ -157,6 +158,21 @@ func place_block(cell: Vector2i) -> bool:
 	hud.update_build(blocks.size(), BLOCK_BUDGET)
 	return true
 
+# Local x of the outermost remaining block faces; ZERO once every block is gone.
+func defence_span() -> Vector2:
+	if blocks.is_empty():
+		return Vector2.ZERO
+	var span := Vector2(INF, -INF)
+	for block in blocks.values():
+		var half: float = block.get_node("CollisionShape3D").shape.size.x / 2
+		span = Vector2(minf(span.x, block.position.x - half), maxf(span.y, block.position.x + half))
+	return span
+
+# World x the camera and enemy fire centre on: the middle of the remaining blocks.
+func defence_center() -> float:
+	var span := defence_span()
+	return wall.position.x + (span.x + span.y) / 2
+
 func remove_block(cell: Vector2i) -> bool:
 	if not blocks.has(cell):
 		return false
@@ -207,8 +223,9 @@ func _physics_process(delta: float) -> void:
 		return
 	elapsed += delta
 	var direction := float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT))
-	wall.position.x = clampf(wall.position.x + direction * WALL_SPEED * delta, -WALL_LIMIT, WALL_LIMIT)
-	camera.position.x = wall.position.x
+	var span := defence_span()
+	wall.position.x = clampf(wall.position.x + direction * WALL_SPEED * delta, -LANE_EDGE - span.x, LANE_EDGE - span.y)
+	camera.position.x = lerpf(camera.position.x, defence_center(), 1.0 - exp(-8.0 * delta))
 	fire_left -= delta
 	if fire_left <= 0.0:
 		if projectiles.size() < MAX_BALLS:
@@ -255,7 +272,7 @@ func move_ball(ball: CharacterBody3D, delta: float) -> void:
 
 func fire_enemy_ball() -> CharacterBody3D:
 	var emitter := emitters.get_child(randi_range(0, emitters.get_child_count() - 1)) as Node3D
-	var target_x := clampf(wall.position.x + randf_range(-3.4, 3.4), -6.1, 6.1)
+	var target_x := clampf(defence_center() + randf_range(-3.4, 3.4), -6.1, 6.1)
 	var spawn := emitter.global_position + Vector3(0, 0, 1.3)
 	spawn.y = BALL_Y
 	var target := Vector3(target_x, BALL_Y, 0)

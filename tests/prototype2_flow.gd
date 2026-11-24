@@ -38,7 +38,9 @@ func layout(screen: Control) -> void:
 func run_checks() -> void:
 	root.size = Vector2i(1152, 720)
 	await fresh()
-	check(get_nodes_in_group("defence_block").size() == 128, "128 small authored bricks")
+	check(get_nodes_in_group("defence_block").size() == game.TOTAL_BLOCKS and game.TOTAL_BLOCKS == 32, "32 bricks in a single row")
+	for brick in game.wall.get_children():
+		check(is_equal_approx(brick.position.y, game.BALL_Y), "every brick sits on the ball lane")
 	var block: StaticBody3D = game.wall.get_child(0)
 	check(block.get_node("CollisionShape3D").shape.size.is_equal_approx(Vector3(.42, .44, .42)), "individual bricks are smaller in all main face dimensions")
 	var ball = game.spawn_ball(Vector3(0, 1.5, -10), Vector3.ZERO)
@@ -48,28 +50,31 @@ func run_checks() -> void:
 	await frames(10)
 	check(game.elapsed == 0, "menu pauses survival clock")
 	layout(game.hud.start_screen)
-	# The player only moves horizontally: all legal ball heights must intersect a row.
+	# The player only moves horizontally: every legal ball x must be coverable by the row.
 	var covered := true
 	for xi in 21:
-		for yi in 21:
-			var x := lerpf(-game.BALL_MAX_X, game.BALL_MAX_X, xi / 20.0)
-			var y := lerpf(game.BALL_MIN_Y, game.BALL_MAX_Y, yi / 20.0)
-			var reachable := false
-			for brick in game.wall.get_children():
-				var shift := clampf(x - brick.position.x, -4.8, 4.8)
-				if absf(x - brick.position.x - shift) <= 0.30 and absf(y - brick.position.y) <= 0.31:
-					reachable = true
-					break
-			covered = covered and reachable
-	check(covered, "every point in legal ball cross-section is coverable by horizontal wall movement")
+		var x := lerpf(-game.BALL_MAX_X, game.BALL_MAX_X, xi / 20.0)
+		var reachable := false
+		for brick in game.wall.get_children():
+			var shift := clampf(x - brick.position.x, -4.8, 4.8)
+			if absf(x - brick.position.x - shift) <= 0.30:
+				reachable = true
+				break
+		covered = covered and reachable
+	check(covered, "every point on the ball lane is coverable by horizontal wall movement")
 	var probe = game.spawn_ball(Vector3(0, 1.5, -10), Vector3(5, 12, 0))
+	check(is_equal_approx(probe.position.y, game.BALL_Y) and is_equal_approx(probe.get_meta("velocity").y, 0.0), "balls spawn flat on the lane")
+	check(is_equal_approx(probe.get_meta("velocity").length(), Vector3(5, 12, 0).length()), "flattening keeps ball speed")
 	var confined := true
 	game.set_physics_process(false)
 	for i in 360:
 		game.move_ball(probe, 1.0 / 60.0)
-		confined = confined and probe.position.y >= game.BALL_MIN_Y - .005 and probe.position.y <= game.BALL_MAX_Y + .005
+		confined = confined and is_equal_approx(probe.position.y, game.BALL_Y)
 		confined = confined and absf(probe.position.x) <= game.BALL_MAX_X + .005
-	check(confined, "repeated ceiling, floor and side rebounds never leave reachable defence area")
+	check(confined, "repeated side rebounds never move the ball up or down or out of the defence area")
+	var shot = game.fire_enemy_ball()
+	check(is_equal_approx(shot.get_meta("velocity").y, 0.0) and is_equal_approx(shot.position.y, game.BALL_Y), "emitters fire flat shots")
+	game.remove_ball(shot)
 	game.remove_ball(probe)
 	game.set_physics_process(true)
 	game.start_run()
@@ -97,9 +102,9 @@ func run_checks() -> void:
 	for x in [-0.45, 0.45]:
 		var fixture: StaticBody3D = game.wall.get_child(0).duplicate()
 		game.add_child(fixture)
-		fixture.position = Vector3(x, 1.5, -7)
+		fixture.position = Vector3(x, game.BALL_Y, -7)
 	await frames(2)
-	ball = game.spawn_ball(Vector3(0, 1.5, -7), Vector3(90, 0, .8))
+	ball = game.spawn_ball(Vector3(0, game.BALL_Y, -7), Vector3(90, 0, .8))
 	await frames(2)
 	check(game.intercepted == 2, "one ball breaks two bricks through successive real side bounces")
 	check(is_instance_valid(ball) and not ball.is_queued_for_deletion(), "ricocheting ball stays alive")
@@ -122,7 +127,7 @@ func run_checks() -> void:
 	game.fire_left = 999
 	for brick in game.wall.get_children():
 		brick.queue_free()
-	game.intercepted = 128
+	game.intercepted = game.TOTAL_BLOCKS
 	await frames(3)
 	check(not game.finished and game.hud.game.visible, "using all blocks does not end survival")
 	check(game.hud.get_node("Game/Blocks").text == "BLOCKS LEFT  000", "HUD reports depleted wall")

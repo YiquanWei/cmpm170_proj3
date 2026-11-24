@@ -1,9 +1,9 @@
 extends Node3D
 
-const TOTAL_BLOCKS := 128
+const TOTAL_BLOCKS := 32
 const MAX_BALLS := 3
-const BALL_MIN_Y := 0.52
-const BALL_MAX_Y := 2.43
+# Balls travel flat at the height of the single row of defence blocks.
+const BALL_Y := 0.65
 const BALL_MAX_X := 6.61
 
 @export var record_path := "user://prototype2_records.cfg"
@@ -106,12 +106,14 @@ func move_ball(ball: CharacterBody3D, delta: float) -> void:
 		var collider := hit.get_collider() as Node3D
 		var normal := hit.get_normal()
 		var velocity: Vector3 = ball.get_meta("velocity")
-		ball.set_meta("velocity", velocity.bounce(normal))
-		motion = hit.get_remainder().bounce(normal)
+		ball.set_meta("velocity", flatten(velocity.bounce(normal)))
+		motion = flatten(hit.get_remainder().bounce(normal))
 		if collider.is_in_group("defence_block"):
 			intercept_ball(ball, collider)
 		elif collider.is_in_group("enemy_emitter"):
 			flash_edges(collider, CYAN)
+	# Edge and corner hits must never push the ball off its lane.
+	ball.global_position.y = BALL_Y
 	update_ball_trail(ball)
 	var flash_left := maxf(0.0, float(ball.get_meta("flash_left")) - delta)
 	ball.set_meta("flash_left", flash_left)
@@ -126,7 +128,8 @@ func fire_enemy_ball() -> CharacterBody3D:
 	var emitter := emitters.get_child(randi_range(0, emitters.get_child_count() - 1)) as Node3D
 	var target_x := clampf(wall.position.x + randf_range(-3.4, 3.4), -6.1, 6.1)
 	var spawn := emitter.global_position + Vector3(0, 0, 1.3)
-	var target := Vector3(target_x, randf_range(0.65, 2.3), 0)
+	spawn.y = BALL_Y
+	var target := Vector3(target_x, BALL_Y, 0)
 	var speed := minf(15.0, 7.5 + elapsed * 0.035)
 	var ball := spawn_ball(spawn, (target - spawn).normalized() * speed)
 	flash_edges(emitter, ORANGE)
@@ -136,9 +139,9 @@ func fire_enemy_ball() -> CharacterBody3D:
 func spawn_ball(position_world: Vector3, velocity: Vector3) -> CharacterBody3D:
 	var ball := projectile_scene.instantiate() as CharacterBody3D
 	projectiles_root.add_child(ball)
-	ball.global_position = position_world
+	ball.global_position = Vector3(position_world.x, BALL_Y, position_world.z)
 	ball.get_node("Mesh").material_override = incoming_material
-	ball.set_meta("velocity", velocity)
+	ball.set_meta("velocity", flatten(velocity))
 	ball.set_meta("flash_left", 0.0)
 	ball.set_meta("trail", PackedVector3Array())
 	projectiles.append(ball)
@@ -192,6 +195,15 @@ func load_record() -> void:
 		var value = records.get_value("survival", "best_seconds", 0.0)
 		if (value is float or value is int) and is_finite(float(value)):
 			best_time = maxf(0.0, float(value))
+
+
+# Removes vertical movement while keeping the ball's speed.
+func flatten(v: Vector3) -> Vector3:
+	var speed := v.length()
+	v.y = 0.0
+	if v.length_squared() < 0.000001:
+		return Vector3.ZERO
+	return v.normalized() * speed
 
 
 func update_hud() -> void:

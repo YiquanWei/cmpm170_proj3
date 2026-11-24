@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 signal start_requested
+signal defend_requested
 signal restart_requested
 signal menu_requested
 
@@ -10,12 +11,14 @@ const ORANGE := Color(1.0, 0.3, 0.12)
 @onready var game: Control = $Game
 @onready var start_screen: Control = $StartScreen
 @onready var end_screen: Control = $EndScreen
+@onready var build: Control = $Build
 var feedback_left := 0.0
 
 func _ready() -> void:
 	$StartScreen/Frame/Margin/Content/Start.pressed.connect(func(): start_requested.emit())
 	$EndScreen/Frame/Margin/Content/Buttons/Again.pressed.connect(func(): restart_requested.emit())
 	$EndScreen/Frame/Margin/Content/Buttons/Menu.pressed.connect(func(): menu_requested.emit())
+	$Build/Bottom/Defend.pressed.connect(func(): defend_requested.emit())
 	$Game/Clock/Penalty.hide()
 
 func _process(delta: float) -> void:
@@ -24,11 +27,24 @@ func _process(delta: float) -> void:
 
 func show_start() -> void:
 	game.hide()
+	build.hide()
 	end_screen.hide()
 	start_screen.show()
 	$StartScreen/Frame/Margin/Content/Start.grab_focus()
 
+func show_build() -> void:
+	start_screen.hide()
+	end_screen.hide()
+	game.hide()
+	build.show()
+	get_viewport().gui_release_focus()
+
+func update_build(placed: int, budget: int) -> void:
+	$Build/Count.text = "BLOCKS  %d / %d" % [placed, budget]
+	$Build/Bottom/Defend.disabled = placed == 0
+
 func show_game() -> void:
+	build.hide()
 	start_screen.hide()
 	end_screen.hide()
 	game.show()
@@ -58,6 +74,7 @@ func notify_base_hit() -> void:
 
 func show_end(broken: int, total: int, seconds: float, best: float, record: bool) -> void:
 	game.hide()
+	build.hide()
 	start_screen.hide()
 	end_screen.show()
 	var content := $EndScreen/Frame/Margin/Content

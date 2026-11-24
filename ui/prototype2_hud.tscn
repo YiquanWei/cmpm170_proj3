@@ -190,8 +190,8 @@ anchor_top = 0.5
 anchor_bottom = 0.5
 offset_left = -350.0
 offset_right = 350.0
-offset_top = -264.0
-offset_bottom = 264.0
+offset_top = -300.0
+offset_bottom = 300.0
 
 [node name="Margin" type="MarginContainer" parent="StartScreen/Frame"]
 anchors_preset = 15
@@ -267,12 +267,15 @@ theme_override_font_sizes/font_size = 24
 [node name="Line" type="HSeparator" parent="StartScreen/Frame/Margin/Content"]
 
 [node name="Controls" type="Label" parent="StartScreen/Frame/Margin/Content"]
-text = "A / D or ← / →    MOVE THE WALL\nAUTO BLOCK        NO SWING BUTTON"
+text = "LEFT CLICK        PLACE A BLOCK
+RIGHT CLICK       REMOVE A BLOCK
+ENTER             START DEFENDING
+A / D or ← / →    MOVE THE WALL"
 theme_override_font_sizes/font_size = 18
 theme_override_constants/line_spacing = 10
 
 [node name="Rules" type="Label" parent="StartScreen/Frame/Margin/Content"]
-text = "Balls ricochet through your wall, breaking blocks.\nSurvive enemy fire for as long as possible.\nThe base can take 3 hits. Your best time is saved."
+text = "1. Build: place up to 8 blocks on the grid.\n2. Defend: each block bounces a ball back, then breaks.\n3. Survive enemy fire for as long as possible.\nThe base can take 3 hits. Your best time is saved."
 theme_override_font_sizes/font_size = 16
 theme_override_constants/line_spacing = 7
 modulate = Color(0.65, 0.8, 0.85, 1)
@@ -322,3 +325,50 @@ custom_minimum_size = Vector2(0, 54)
 size_flags_horizontal = 3
 text = "MAIN MENU"
 mouse_default_cursor_shape = 2
+
+[node name="Build" type="Control" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = SubResource("Theme")
+
+[node name="Title" type="Label" parent="Build"]
+offset_left = 32.0
+offset_top = 28.0
+text = "BUILD PHASE"
+theme_override_font_sizes/font_size = 22
+
+[node name="Count" type="Label" parent="Build"]
+offset_left = 32.0
+offset_top = 62.0
+text = "BLOCKS  0 / 8"
+theme_override_font_sizes/font_size = 16
+
+[node name="Bottom" type="VBoxContainer" parent="Build"]
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = -320.0
+offset_right = 320.0
+offset_top = -130.0
+offset_bottom = -20.0
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="Help" type="Label" parent="Build/Bottom"]
+text = "LEFT CLICK  PLACE    •    RIGHT CLICK  REMOVE"
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+modulate = Color(0.55, 0.8, 0.9, 1)
+
+[node name="Defend" type="Button" parent="Build/Bottom"]
+custom_minimum_size = Vector2(280, 52)
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+disabled = true
+text = "DEFEND  [ENTER]"
